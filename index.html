@@ -1,0 +1,343 @@
+<html>
+<head>
+	<title>Fat-tree</title>
+	<meta http-equiv="content-type" content="text/html;charset=utf-8">
+	<script src="d3.v2.js"></script>
+	<style>
+		circle.node{
+		  fill: #fff;
+		  stroke: steelblue;
+		  stroke-width: 1.5px;
+		}
+
+		rect {
+  			fill: #fff;
+		}
+		.node {
+		  font: 10px sans-serif;
+		}
+
+		.link {
+		  fill: none;
+		  stroke: #ccc;
+		  stroke-width: 1.5px;
+		}
+		.w_link {
+			fill: none;
+			stroke: #f30;
+			stroke-width: 1.2px;
+			stroke-dasharray: 10;
+		}
+	</style>
+</head>
+<body>
+<div>
+<h1>Fat-tree with wireless links</h1>
+	<h4>Three layers excluding servers: core, aggregation and ToR.</h4>
+	<div>
+		<input type="checkbox" id="circle" value="true" />
+		<span>Draw tree in circle</span>
+	</div>
+	<div>
+		<label>K=</label><input type="text" id="kv" value=6 />
+		<label>C=</label><input type="text" id="cv" value=3 />
+		<button onclick="init()">Draw</button>
+		<span style="color: #999">Click graph to toggle wireless links.</span>
+	</div>
+	<div id="graph">
+	</div>
+</div>
+
+
+<script>
+K = 6;
+BiC = 5;
+wlan = false;
+circle = true;
+var hz_margin = 100
+    vt_margin = 160
+	cr_margin = 50;
+var w = K*K/2*hz_margin,
+    h = vt_margin*3,
+    nodes = [],
+    links = [],
+    w_links = [];
+
+var vis = d3.select("#graph").append("svg:svg")
+	    .append("g")
+	    .attr("transform", "translate(40, 40)");
+/*
+	vis.append("svg:rect")
+	    .attr("width", w)
+	    .attr("height", h+vt_margin*K/2);
+*/
+
+function addNodes() {
+	var dg = 2*Math.PI/(K*K/2);
+	var height = h-10, i, cnt=0, r=cr_margin/dg, max_r = r;
+	for (i=0; i<K*K/2; ++i) {
+		if (!circle) {
+			nodes.push({x: i*hz_margin, y: height, id: cnt++});
+		}  else {
+			nodes.push({x: r*Math.cos(dg*i)+max_r, y: r*Math.sin(dg*i)+max_r, id: cnt++});
+		}
+	}	
+	height -= vt_margin;
+	
+	dg = 2*Math.PI/(K*K/2);
+	r = cr_margin/dg/2;
+	for (i=0; i<K*K/2; ++i) {
+		if (!circle) {
+			nodes.push({x: i*hz_margin, y: height, id: cnt++});
+		}  else {
+			nodes.push({x: r*Math.cos(dg*i)+max_r, y: r*Math.sin(dg*i)+max_r, id: cnt++});
+		}
+	}	
+	height -= vt_margin;
+
+	dg = 2*Math.PI/(K*K/4);
+	r = cr_margin/dg/2;
+	
+	var offset = (w-(K*K/4)*hz_margin)/2;
+	for (i=0; i<K*K/4; ++i) {
+		if (!circle) {
+			nodes.push({x: i*hz_margin+offset, y: height, id: cnt++});
+		} else {
+			nodes.push({x: r*Math.cos(dg*i)+max_r, y: r*Math.sin(dg*i)+max_r, id: cnt++});
+		}
+	}
+
+}
+function addLinks() {
+	var i, j, t;
+
+	// Wire links
+	for (i=0; i<K; ++i) {
+		for (j=0; j<K/2; ++j) {
+			for (t=0; t<K/2; ++t)
+				links.push({source: nodes[K*K/2+i*K/2+j], target: nodes[i*K/2+t]});
+		}
+	}
+	
+	j = 0;
+	var ports = K/2;
+	for (i=K*K; i<K*K+K*K/4; ++i) {
+		for (t=0; t<K; ++t) {
+			if (ports == 0) {
+				++j;
+				ports = K/2;
+			}
+			links.push({source: nodes[i], target: nodes[j+(K/2)*t+K*K/2]});
+		}
+		--ports;
+	}
+
+}
+
+function mouseover(d) {
+	vis.selectAll(".link.source-" + d.id)
+		.style('stroke', 'green');
+}
+function mouseout(d) {
+	vis.selectAll(".link.source-" + d.id)
+		.style('stroke', '#ccc');
+}
+
+var diagonal = d3.svg.diagonal()
+			//	.source(function (d) { return d.source; })
+				.target(function (d) { return d.target; });
+
+function drawLinks(links) {
+	vis.selectAll("line.link")
+	    .data(links)
+	    .enter()
+			//.insert("svg:line", "circle.node")
+			//.attr("class", function(d) { return 'link source-'+d.source.id; })
+			//.attr("x1", function(d) { return d.source.x; })
+			//.attr("y1", function(d) { return d.source.y; })
+			//.attr("x2", function(d) { return d.target.x; })
+			//.attr("y2", function(d) { return d.target.y; });
+			.append("path")
+			.attr("class", function(d) { return 'link source-'+d.source.id; })
+			.attr("d", function(d) {
+				var os = {x: d.source.x0, y: d.source.y0};
+				var ot = {x: d.target.x0, y: d.target.y0};
+			    return diagonal({source: os, target: ot});
+			})
+			.transition().duration(800)
+			.attr("d", diagonal);
+
+}
+
+function init() {
+	K = document.getElementById("kv").value *1;
+	BiC = document.getElementById("cv").value *1;
+	circle = document.getElementById("circle").checked;
+	
+	w = K*K/2*hz_margin;
+    	h = vt_margin*3;
+    	nodes = [];
+    	links = [];
+    	w_links = [];
+	
+	d3.select("body").select("svg")
+		.attr("width", !circle?w:2.5*cr_margin/(2*Math.PI/(K*K/2)))
+	    .attr("height", !circle?h+vt_margin*K/2:2.5*cr_margin/(2*Math.PI/(K*K/2)));
+	
+	vis.select("rect").remove();
+	vis.selectAll(".node").remove();
+	vis.selectAll(".link").remove();
+	vis.selectAll(".w_link").remove();
+	
+	
+	vis.append("svg:rect")
+	    .attr("width", !circle?w:2.5*cr_margin/(2*Math.PI/(K*K/2)))
+	    .attr("height", !circle?h+vt_margin*K/2:2.5*cr_margin/(2*Math.PI/(K*K/2)));
+	
+	
+	addNodes();
+	addLinks();
+	
+	update();
+}
+function update(wireless) {
+	circle = document.getElementById("circle").checked;
+	
+	nodes.forEach(function(d) {
+		if (!wireless && d.x0!=undefined && d.y0!=undefined) {
+			var t;
+			t=d.x; d.x=d.x0; d.x0=d.x;
+			t=d.y; d.y=d.y0; d.y0=d.y;
+		} else {
+			d.x0 = d.x;
+			d.y0 = d.y;
+		}
+	}); 
+	
+	if (wireless) {
+		var height = h-10,
+			offset = (w-hz_margin*(K))/2,
+			wnodes = [];
+
+		if (!circle) {
+			for (i=0; i<K/2; ++i) {
+				for (j=0; j<K; ++j) {
+					wnodes.push( { x: offset+j*hz_margin, y: height } );
+					nodes[i*K+j].x = offset+j*hz_margin;
+					nodes[i*K+j].y = height;
+				}
+				height += vt_margin;
+			}
+			// Wireless links
+			for (i=0; i<K*K/2; ++i) {
+				if (i-K>=0) {
+					w_links.push({source: wnodes[i-K], target: wnodes[i]});
+					dept = 1;
+					while (((i-K+dept)%K !=0 || (i-K+dept ==0)) && dept<BiC) {
+						w_links.push({source: wnodes[i-K+dept], target: wnodes[i]});
+						++dept;
+					}
+					dept = 1;
+					while ((i+dept)%K != 0 && dept<BiC) {
+						w_links.push({source: wnodes[i-K], target: wnodes[i+dept]});
+						++dept;
+					}
+				}
+				if ((i+1)%K != 0) w_links.push({source: wnodes[i], target: wnodes[i+1]});
+			}
+		} else {
+			// Wireless links
+			for (i=0; i<K*K/2; ++i) {
+				if (i-K>=0) {
+					w_links.push({source: nodes[i-K], target: nodes[i]});
+				}
+			}
+		}
+		
+		setTimeout(function () { 
+	  	  vis.selectAll("line.link")
+		    .data(w_links)
+	    		.enter()
+				//.append("path")
+				.append("svg:line")
+				.attr("class", function(d) { return 'w_link source-'+d.source.id; })
+				//.attr("d", diagonal);
+				.attr("x1", function(d) { return d.source.x; })
+				.attr("y1", function(d) { return d.source.y; })
+				.attr("x2", function(d) { return d.target.x; })
+				.attr("y2", function(d) { return d.target.y; });
+		}, circle?1:750);
+	} else {
+		vis.selectAll("line.w_link").remove();
+		w_links = [];
+	}
+	
+	nodes.forEach(function(d) {
+		vis.selectAll(".link.source-" + d.id)
+			.remove();
+	});
+
+	if (wireless) {
+		vis.selectAll(".node")
+		   .select(function(d, i) { return i<K*K/2 ? this : null; })
+		   .transition().duration(800)
+		   .attr("transform", function(d) { 
+	   			return  "translate(" + (d.x-d.x0) + "," + (d.y-d.y0) + ")"; 
+			});
+	} else {
+		vis.selectAll(".node")
+		   .select(function(d, i) { return i<K*K/2 ? this : null; })
+		   .attr("transform", function(d) { 
+	   			return  "translate(" + (d.x-d.x0) + "," + (d.y-d.y0) + ")"; 
+			});
+	}
+		
+	drawLinks(links);
+	
+	var tmp;
+	tmp = circle?vis.selectAll("g"):vis.selectAll("circle.node");
+	tmp .data(nodes)
+		.enter()
+			.append("circle")
+				.attr("class", "node")
+				.attr("cx", function(d) { return d.x; })
+				.attr("cy", function(d) { return d.y; })
+				.attr("r", 10)
+				.on('mouseover', mouseover)
+				.on('mouseout', mouseout);
+			
+	vis.selectAll("text.node").remove();	
+	// setTimeout(function () {	
+		vis.selectAll("svg")
+			.data(nodes)
+			.enter()
+				.append("text")
+				.attr("class", "node")
+				.on('mouseover', mouseover)
+				.on('mouseout', mouseout)
+				.attr("x", function(d) { return d.x; })
+				.attr("y", function(d) { return d.y; })
+				.attr("dy", 5)
+				.attr("font-size", 12)
+				.attr("text-anchor", "middle")
+				.text(function(d) { return d.id; });
+	// }, wireless?800:200);
+}
+
+init();
+
+vis.on('click', function() { 
+	wlan = !wlan; 
+	//vis.selectAll(".node").remove();
+	//vis.selectAll(".link").remove();
+	//vis.selectAll(".w_link").remove();
+	update(wlan); 
+});
+
+d3.select("#circle").on("click", function() {
+	init();
+});
+
+</script>
+</body>
+</html>
